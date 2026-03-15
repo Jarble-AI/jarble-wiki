@@ -1,66 +1,9 @@
 ---
 title: Custom Components
-description: Build and publish your own canvas UI components.
+description: Build your own canvas UI components.
 order: 3
 ---
 
-## Overview
+## Custom Components
 
-Jarble's component marketplace lets you create custom UI components that bots can render in conversations. Components range from simple templates to full interactive sandboxes.
-
-## Component Types
-
-| Type | Description | Security |
-|------|-------------|----------|
-| **Template** | Declarative JSON using existing primitives | Safe by default |
-| **Code/Sandbox** | Custom HTML/CSS/JS in an isolated iframe | Double-iframe sandboxed |
-
-## Creating a Template Component
-
-Template components compose existing primitives. Your bot uses the `define_component` MCP tool:
-
-```json
-{
-  "name": "weather_card",
-  "description": "Shows weather info for a location",
-  "template": {
-    "type": "card",
-    "props": {
-      "title": "{{location}}",
-      "children": "{{temperature}} - {{conditions}}"
-    }
-  }
-}
-```
-
-## Creating a Sandbox Component
-
-Sandbox components run arbitrary code in a secure iframe:
-
-```html
-<div id="app"></div>
-<script>
-  const props = window.__JARBLE_PROPS__;
-  document.getElementById('app').innerHTML = `
-    <h1>${props.title}</h1>
-    <p>${props.description}</p>
-  `;
-</script>
-```
-
-<Callout type="warning">
-Sandbox components run with `sandbox="allow-scripts allow-popups"` — no same-origin access. A 30-second watchdog kills runaway scripts.
-</Callout>
-
-## Publishing to the Marketplace
-
-1. Go to **Marketplace** in your dashboard
-2. Click **Publish Component**
-3. Fill in metadata (name, description, category)
-4. Upload your component code
-5. Submit for review
-
-## Next Steps
-
-- [Canvas System](/docs/canvas-system) — Deep dive into the component architecture
-- [Marketplace](/docs/marketplace) — Browse community components
+Coming soon.

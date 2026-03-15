@@ -1,51 +1,9 @@
 ---
 title: Multi-Channel Setup
-description: Connect your bot to WhatsApp, Telegram, Discord, and Slack simultaneously.
+description: Connect your bot to multiple messaging platforms.
 order: 4
 ---
 
-## Overview
+## Multi-Channel Setup
 
-A single Jarble deployment can serve multiple messaging channels at once. This tutorial walks through connecting all supported platforms.
-
-## Telegram
-
-1. Open [@BotFather](https://t.me/BotFather) in Telegram
-2. Send `/newbot` and follow the prompts to create a bot
-3. Copy the bot token (looks like `123456789:ABCdefGhI...`)
-4. In Jarble, go to your deployment's **Configuration** > **Telegram**
-5. Paste the token and save
-6. Message your bot in Telegram — you'll receive a pairing code
-7. Approve the pairing in the Jarble dashboard
-
-## Discord
-
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Create a **New Application**
-3. Go to **Bot** > **Add Bot**
-4. Copy the bot token
-5. Enable **Message Content Intent** under Privileged Gateway Intents
-6. In Jarble, go to **Configuration** > **Discord** and paste the token
-
-## Slack
-
-1. Go to [api.slack.com/apps](https://api.slack.com/apps) and create a new app
-2. Enable **Socket Mode** and generate an **App-Level Token** (`xapp-...`)
-3. Under **OAuth & Permissions**, install to your workspace and copy the **Bot Token** (`xoxb-...`)
-4. In Jarble, enter both tokens in **Configuration** > **Slack**
-
-## WhatsApp
-
-1. In Jarble, go to **Configuration** > **WhatsApp**
-2. A QR code will appear — scan it with WhatsApp on your phone
-3. Once paired, your bot is live on WhatsApp
-
-<Callout type="info">
-All channel credentials are encrypted with AES-256-GCM before storage. They're injected as environment variables into your pod and never exposed in logs.
-</Callout>
-
-## Channel-Specific Behavior
-
-- **Web Chat** renders rich UI components (charts, tables, forms)
-- **Messaging channels** (Telegram, Discord, etc.) receive text-only responses with the same guardrails
-- The system prompt applies to all channels equally
+Coming soon.

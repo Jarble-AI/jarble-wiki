@@ -67,20 +67,6 @@ export function getDocsForSection(section: string): readonly DocMeta[] {
 }
 
 /**
- * Get all slugs for a content section (for generateStaticParams).
- */
-export function getSlugsForSection(section: string): readonly string[] {
-  const dirPath = path.join(CONTENT_DIR, section);
-
-  if (!fs.existsSync(dirPath)) return [];
-
-  return fs
-    .readdirSync(dirPath)
-    .filter((f) => f.endsWith(".mdx"))
-    .map((f) => f.replace(/\.mdx$/, ""));
-}
-
-/**
  * Extract headings from MDX content for table of contents.
  */
 export function extractHeadings(content: string): readonly { id: string; text: string; level: number }[] {

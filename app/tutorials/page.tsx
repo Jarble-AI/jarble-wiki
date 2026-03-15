@@ -3,6 +3,8 @@ import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/ca
 import { Badge } from "@/components/ui/badge";
 import { getDocsForSection } from "@/lib/mdx";
 
+export const dynamic = "force-dynamic";
+
 export const metadata = {
   title: "Tutorials",
   description: "Step-by-step guides for building and deploying bots with Jarble.",

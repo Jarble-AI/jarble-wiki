@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getDocBySlug, getSlugsForSection, extractHeadings } from "@/lib/mdx";
+import { getDocBySlug, extractHeadings } from "@/lib/mdx";
 import { MDXContent } from "@/components/docs/MDXContent";
 import { TableOfContents } from "@/components/docs/TableOfContents";
 import {
@@ -11,13 +11,10 @@ import {
   BreadcrumbPage,
 } from "@/components/ui/breadcrumb";
 
+export const dynamic = "force-dynamic";
+
 interface PageProps {
   params: Promise<{ slug: string }>;
-}
-
-export async function generateStaticParams() {
-  const slugs = getSlugsForSection("tutorials");
-  return slugs.map((slug) => ({ slug }));
 }
 
 export async function generateMetadata({ params }: PageProps) {
