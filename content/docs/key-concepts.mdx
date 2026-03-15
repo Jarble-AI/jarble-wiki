@@ -1,0 +1,54 @@
+---
+title: Key Concepts
+description: Understand runtimes, deployments, channels, and the canvas system.
+order: 3
+---
+
+## Deployments
+
+A **deployment** is an instance of your AI bot running in an isolated container. Each deployment has:
+
+- Its own persistent storage (5GB by default)
+- A unique web chat URL at `/d/[deployment-id]`
+- Independent LLM configuration
+- Separate channel connections
+
+## Runtimes
+
+A **runtime** is the bot framework that powers your deployment. Currently available:
+
+| Runtime | Description |
+|---------|-------------|
+| **OpenClaw** | Full-featured runtime with MCP tool support, canvas rendering, and multi-channel |
+| **ZeroClaw** | Lightweight runtime for simple conversational bots |
+
+## Channels
+
+**Channels** are the messaging platforms your bot connects to. Each deployment can connect to multiple channels simultaneously:
+
+- **Web Chat** — Built-in, always available
+- **Telegram** — Via Bot API token
+- **Discord** — Via bot token
+- **Slack** — Via bot + app tokens
+- **WhatsApp** — Via QR code pairing
+
+## Canvas Components
+
+The **canvas system** lets your bot render rich UI components inline in conversations. When a bot calls the `render_ui` MCP tool, components appear as interactive blocks in the chat.
+
+There are 37 built-in components across categories:
+
+- **Display** — Cards, tables, stat grids, timelines
+- **Charts** — Line, bar, area, pie, radar, scatter (via recharts)
+- **Interactive** — Forms, button groups, code editors
+- **Media** — Video, audio, image galleries
+- **Specialized** — Maps, spreadsheets, sandboxes
+
+## MCP Tools
+
+Bots interact with the platform through **MCP (Model Context Protocol) tools**:
+
+- `render_ui` — Render a canvas component
+- `define_component` — Create a custom component
+- `list_components` — List available components
+- `component_reference` — Get component documentation

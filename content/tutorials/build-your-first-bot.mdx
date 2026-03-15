@@ -1,0 +1,67 @@
+---
+title: Build Your First Bot
+description: A complete walkthrough of creating and deploying your first Jarble bot.
+order: 1
+---
+
+## What You'll Build
+
+In this tutorial, you'll create an AI bot that can:
+
+- Have natural conversations
+- Render rich UI components (charts, cards, tables)
+- Connect to Telegram
+
+## Prerequisites
+
+- A Jarble account ([sign up here](https://jarble.ai))
+- An Anthropic or OpenAI API key
+- (Optional) A Telegram bot token from [@BotFather](https://t.me/BotFather)
+
+## Create Your Deployment
+
+1. Log in to [jarble.ai](https://jarble.ai) and go to the **Dashboard**
+2. Click **New Deployment**
+3. Enter a name, e.g., "My First Bot"
+4. Select **OpenClaw** as the runtime
+
+## Configure Your LLM
+
+1. Choose your LLM provider (e.g., Anthropic)
+2. Enter your API key
+3. Select a model (e.g., Claude Sonnet 4)
+
+<Callout type="info">
+Your API key is encrypted with AES-256-GCM and stored securely. It's never exposed in logs or the UI.
+</Callout>
+
+## Deploy
+
+Click **Deploy** and wait for your bot to start. The dashboard will show the status changing from "creating" to "running".
+
+## Test Your Bot
+
+Click on your deployment to open the web chat. Try these prompts:
+
+- "Hello! What can you do?"
+- "Show me a chart of the top 5 programming languages by popularity"
+- "Create a table comparing React, Vue, and Angular"
+
+Your bot will respond with text and render interactive UI components inline.
+
+## Connect Telegram (Optional)
+
+1. Open [@BotFather](https://t.me/BotFather) in Telegram
+2. Send `/newbot` and follow the prompts
+3. Copy the bot token
+4. In Jarble, go to your deployment's **Configuration** tab
+5. Paste the token in the Telegram section
+6. Approve the pairing code that appears in Telegram
+
+## Congratulations!
+
+You've deployed your first AI bot. Next steps:
+
+- [Deploy to Production](/tutorials/deploy-to-production) — Set up a production-ready deployment
+- [Custom Components](/tutorials/custom-components) — Build your own canvas components
+- [Multi-Channel Setup](/tutorials/multi-channel-setup) — Connect Discord, Slack, and WhatsApp
