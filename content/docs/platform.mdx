@@ -1,0 +1,243 @@
+---
+title: Platform Guide
+description: Understand Jarble deployments, runtimes, LLM providers, and messaging platform integration.
+order: 3
+---
+
+A comprehensive reference for Jarble's runtimes, LLM providers, messaging integrations, deployment lifecycle, and billing.
+
+## Runtimes
+
+A runtime is the containerized environment that powers your bot. Each deployment runs inside its own Kubernetes pod with dedicated CPU, memory, and persistent storage.
+
+### OpenClaw (Recommended)
+
+OpenClaw is a full-featured Node.js runtime built for production AI bots. It includes an MCP (Model Context Protocol) server that gives your bot access to tools like `render_ui`, `define_component`, and `component_reference`.
+
+Key capabilities:
+
+- Rich UI rendering -- 37 component types (charts, tables, forms, maps, 3D, code editors)
+- Multi-platform messaging -- Telegram, Discord, Slack, WhatsApp
+- Skills -- web search, weather, calculator, and custom skills
+- Custom components -- define reusable components that persist across conversations
+- Sandbox mode -- run arbitrary HTML/CSS/JS in a secure iframe with Three.js, D3, and more
+
+### ZeroClaw
+
+ZeroClaw is a lightweight Python runtime designed for simple text-based chat bots. It has lower resource requirements and faster startup times than OpenClaw but does not support MCP tools or rich UI rendering.
+
+Best for:
+
+- Quick prototyping and experimentation
+- Bots that only need conversational text responses
+- Low-resource deployments
+
+### Runtime Comparison
+
+| Feature | OpenClaw | ZeroClaw |
+|---------|----------|----------|
+| Language | Node.js 22 | Python |
+| Rich UI components | Yes (37 types) | No |
+| MCP tools | Yes | No |
+| Messaging platforms | Telegram, Discord, Slack, WhatsApp | Telegram, Discord, Slack, WhatsApp |
+| Skills | Yes | No |
+| Custom sandbox | Yes | No |
+| Startup time | 30--90s | 10--30s |
+
+## LLM Providers
+
+Jarble supports four LLM providers. You can use Included Credits (OpenRouter, billed through Jarble) or bring your own API key from any provider. The wizard auto-detects the provider from the key prefix.
+
+### OpenRouter (Recommended)
+
+A unified API gateway providing access to 200+ models from OpenAI, Anthropic, Google, Meta, Mistral, and others. Best for flexibility and cost optimization.
+
+- Key prefix: `sk-or-`
+- Default model: `openrouter/auto` (routes to the best model per request)
+- Available models: GPT-4o, Claude Sonnet 4, Claude Haiku 3.5, Gemini 2.0 Flash, and 200+ more
+- Get a key: [openrouter.ai/keys](https://openrouter.ai/keys)
+
+### Anthropic
+
+Direct access to the Claude model family. Use this if you have an Anthropic API key or a Claude Max subscription.
+
+- Key prefix: `sk-ant-`
+- Models: Claude Opus 4 (most capable), Claude Sonnet 4 (balanced), Claude Haiku 3.5 (fast)
+- Get a key: [console.anthropic.com](https://console.anthropic.com/settings/keys)
+
+<Callout type="info">
+**Claude Max tokens** (`sk-ant-oat*`) are automatically detected and use Bearer authentication. These tokens cannot be validated via the standard API and are accepted by prefix.
+</Callout>
+
+### OpenAI
+
+Direct access to GPT-4o, o1, and other OpenAI models.
+
+- Key prefix: `sk-` (e.g., `sk-proj-...`)
+- Models: GPT-4o (default), GPT-4o Mini, o1
+- Get a key: [platform.openai.com](https://platform.openai.com/api-keys)
+
+### Google AI
+
+Direct access to Google's Gemini model family via AI Studio.
+
+- Key prefix: `AIza`
+- Models: Gemini 2.0 Flash (default), Gemini 2.0 Pro
+- Get a key: [aistudio.google.com](https://aistudio.google.com/apikey)
+
+<Callout type="info" title="Tip">
+All API keys are encrypted with AES-256-GCM before being stored in the database and injected into your pod as Kubernetes Secrets. They are never logged or exposed in plaintext.
+</Callout>
+
+## Messaging Platforms
+
+Connect your bot to one or more messaging platforms from the **Platforms** tab in your deployment configuration. Each platform requires specific credentials and has its own setup flow.
+
+### Telegram
+
+Telegram uses a bot token for authentication and a pairing flow for user authorization.
+
+1. Open Telegram and message [@BotFather](https://t.me/BotFather).
+2. Send `/newbot` and follow the prompts to create a bot.
+3. Copy the bot token (a long string of numbers and letters).
+4. Paste it into the Telegram field on the Platforms tab and save.
+5. Your bot restarts with Telegram enabled. Message your bot on Telegram.
+6. The bot sends a **pairing code**. Jarble automatically polls for pending pairings and approves them.
+7. The bot confirms pairing is complete. You can now chat freely.
+
+<Callout type="info">
+The pairing flow uses OpenClaw's `dmPolicy: "pairing"` mode. New users must be approved before they can interact with the bot, preventing unauthorized access.
+</Callout>
+
+### Discord
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications) and create a new application.
+2. Navigate to **Bot** in the sidebar and click **Reset Token** to generate a bot token.
+3. Enable the **Message Content Intent** under Privileged Gateway Intents.
+4. Use the OAuth2 URL generator to invite the bot to your server with the `bot` scope and `Send Messages` permission.
+5. Paste the bot token into the Discord field on the Platforms tab.
+
+### Slack
+
+Slack requires two tokens: a Bot Token and an App-Level Token with Socket Mode enabled.
+
+1. Create a new app at [api.slack.com/apps](https://api.slack.com/apps) using the "From scratch" option.
+2. Enable **Socket Mode** in the app settings and generate an **App-Level Token** with the `connections:write` scope.
+3. Under **OAuth & Permissions**, add the `chat:write`, `app_mentions:read`, and `im:history` scopes.
+4. Install the app to your workspace and copy the Bot Token.
+5. Paste both tokens into the Slack fields on the Platforms tab: `xoxb-` (Bot Token) and `xapp-` (App Token).
+
+<Callout type="warning">
+Both tokens are required. If you only provide the Bot Token, the Slack integration will not connect.
+</Callout>
+
+### WhatsApp
+
+WhatsApp uses QR code pairing via WhatsApp Web. No Business API or developer account is needed.
+
+1. Open the Platforms tab and click **Connect WhatsApp**.
+2. A QR code appears. Scan it with your phone's WhatsApp app (Settings > Linked Devices > Link a Device).
+3. Once linked, your bot can send and receive messages through your WhatsApp number.
+
+<Callout type="info">
+The QR code streams in real time via SSE. If it expires, click **Refresh** to generate a new one.
+</Callout>
+
+## Deployment Lifecycle
+
+Every deployment runs as a Kubernetes pod with its own persistent volume. The lifecycle is managed entirely through the Jarble dashboard -- no infrastructure knowledge required.
+
+### States
+
+| State | Description |
+|-------|-------------|
+| **Creating** | Pod is being provisioned. Dependencies are installing. Typically 30--90 seconds for a first-time deployment. |
+| **Running** | Bot is live and accepting messages via web chat and any connected messaging platforms. |
+| **Stopped** | Pod has been scaled to zero. No resources are consumed. Data on the persistent volume is preserved. |
+| **Failed** | The pod failed to start or crashed. Check the Logs tab for error details. Common causes: invalid API key, npm cache corruption, resource limits exceeded. |
+
+### Controls
+
+The deployment configuration panel provides three lifecycle controls:
+
+- **Start** -- Scales the pod from zero to one replica. Resumes from the existing persistent volume (fast restart, no reinstall).
+- **Stop** -- Scales the pod to zero. Frees compute resources while preserving all data.
+- **Restart** -- Scales down then back up. Useful after configuration changes or to recover from errors.
+
+### Real-Time Status
+
+Status updates are delivered via Server-Sent Events (SSE). The dashboard badge updates automatically -- no manual refresh needed. When you trigger a start or restart, you see the state transition in real time.
+
+## Configuration
+
+After deployment, configure your bot from the sidebar panel. Available tabs depend on your runtime. OpenClaw deployments have the most options: General, Model, Platforms, Skills, Components, Logs, and Advanced.
+
+### System Prompt (soul.md)
+
+The system prompt defines your bot's personality, behavior guidelines, and domain knowledge. It is written as Markdown and stored as `soul.md` on the pod. Edit it from the **General** tab. Changes sync automatically when you save.
+
+### Skills
+
+Skills extend your bot with additional capabilities beyond conversation. Available skills include:
+
+- **Web Search** -- Search the web and return summarized results.
+- **Weather** -- Look up current weather and forecasts by location.
+- **Calculator** -- Evaluate mathematical expressions.
+
+Enable or disable skills from the **Skills** tab. Each skill is rendered as a configuration file on the pod and loaded by the MCP server. Additional skills can be added through marketplace services.
+
+### Canvas Components
+
+Your bot can render 37 built-in UI component types in the web chat, including charts, data tables, forms, maps, and code editors. Additionally, you can install marketplace components or define custom components that persist across conversations. The **Components** tab shows installed components and provides access to the marketplace.
+
+### Model Configuration
+
+The **Model** tab lets you change the LLM provider, API key, or model selection without redeploying. Changes trigger a config sync and automatic pod restart.
+
+### Logs
+
+The **Logs** tab streams pod logs in real time. Use this to debug startup failures, LLM errors, or messaging platform issues. Logs are streamed via SSE and update as new entries appear.
+
+## Credit System
+
+### Free Trial
+
+New accounts receive a free trial with enough credits to create a deployment and test basic functionality. No credit card is required to start.
+
+### Billing
+
+Jarble uses Stripe for billing. When using Included Credits, you select a monthly spending cap. Available tiers:
+
+| Plan | Best For |
+|------|----------|
+| $5/mo | Light usage -- testing and small bots |
+| $10/mo | Moderate usage -- a few hundred messages per month |
+| $25/mo | Active usage -- busy bots with frequent conversations |
+| $50/mo | Heavy usage -- high-volume bots and power users |
+| $100/mo | Enterprise -- maximum capacity for production workloads |
+
+The spending cap controls how much LLM usage your bot can consume per month. You are only charged for actual usage up to the cap.
+
+<Callout type="info" title="Tip">
+If you bring your own API key, Jarble does not bill for LLM usage -- you pay your provider directly. Only the infrastructure (compute, storage) is billed through Jarble.
+</Callout>
+
+### Linked Deployments
+
+Deployments can be linked into **credit pools**. Linked deployments share a single credit balance, which is useful when you have multiple bots serving different channels but want unified billing. The dashboard graph view visualizes credit pool relationships -- nodes represent deployments and edges show pool linkages.
+
+## Dashboard
+
+The dashboard is your central control panel for all deployments.
+
+### Deployment List
+
+Each deployment shows its name, runtime, current status (with a color-coded badge), and the connected messaging platforms. Click any deployment to open its web chat or configuration panel.
+
+### Graph View
+
+Toggle the graph view to see an interactive node diagram of your deployments. Nodes are arranged using the dagre layout algorithm. Circle icons indicate the deployment type (owner, linked, standalone). Edges show credit pool relationships. Use the filter bar to toggle edge visibility or filter by runtime.
+
+### Real-Time Updates
+
+The dashboard subscribes to SSE status streams. When a deployment changes state (starting, crashing, completing a restart), the status badge updates immediately without polling or manual refresh.

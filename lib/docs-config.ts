@@ -5,43 +5,23 @@ export const docsSidebarSections: readonly SidebarSection[] = [
     title: "Getting Started",
     items: [
       { title: "Introduction", href: "/docs/introduction" },
-      { title: "Quick Start", href: "/docs/quick-start" },
-      { title: "Key Concepts", href: "/docs/key-concepts" },
+      { title: "Getting Started", href: "/docs/getting-started" },
     ],
   },
   {
     title: "Platform",
     items: [
-      { title: "Dashboard", href: "/docs/dashboard" },
-      { title: "Deployments", href: "/docs/deployments" },
-      { title: "Runtimes", href: "/docs/runtimes" },
-      { title: "LLM Providers", href: "/docs/llm-providers" },
-    ],
-  },
-  {
-    title: "Channels",
-    items: [
-      { title: "Web Chat", href: "/docs/web-chat" },
-      { title: "WhatsApp", href: "/docs/whatsapp" },
-      { title: "Telegram", href: "/docs/telegram" },
-      { title: "Discord", href: "/docs/discord" },
-      { title: "Slack", href: "/docs/slack" },
-    ],
-  },
-  {
-    title: "Components",
-    items: [
-      { title: "Overview", href: "/docs/components" },
-      { title: "Canvas System", href: "/docs/canvas-system" },
+      { title: "Platform Guide", href: "/docs/platform" },
+      { title: "Components", href: "/docs/components" },
       { title: "Marketplace", href: "/docs/marketplace" },
     ],
   },
   {
-    title: "API Reference",
+    title: "Reference",
     items: [
-      { title: "Authentication", href: "/docs/api-authentication" },
-      { title: "Endpoints", href: "/docs/api-endpoints" },
-      { title: "MCP Tools", href: "/docs/mcp-tools" },
+      { title: "API Reference", href: "/docs/api-reference" },
+      { title: "Security", href: "/docs/security" },
+      { title: "Architecture", href: "/docs/architecture" },
     ],
   },
 ];

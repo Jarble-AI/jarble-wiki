@@ -1,0 +1,109 @@
+---
+title: Marketplace Guide
+description: Discover, install, and publish custom UI components and bundled services on the Jarble Marketplace.
+order: 5
+---
+
+The Jarble Marketplace is where you discover, install, and publish custom UI components and bundled services. Browse community-built visualizations, install them to your deployments with one click, or publish your own creations.
+
+## Overview
+
+The marketplace has two main content types:
+
+- **Components** -- Individual UI components that extend what your bot can render on the canvas. Examples: custom chart types, specialized data viewers, interactive widgets.
+- **Services** -- Bundles that combine components, skills, and system prompt instructions into a cohesive package. Examples: a "Weather Service" that bundles a weather skill with a forecast visualization component.
+
+## Browsing and Discovery
+
+The marketplace landing page shows featured and recently published items. Use the search bar to find specific components or services by name, description, or tag.
+
+### Filtering
+
+- Filter by type (component or service)
+- Filter by category (visualization, data, interaction, media, etc.)
+- Sort by popularity, rating, or recency
+
+### Component Details
+
+Each component listing shows:
+
+- Name, description, and author
+- Version history with changelogs
+- Install count and average rating
+- Preview screenshots or live demo
+- Configuration schema (what props it accepts)
+- Pricing (free or paid)
+
+## Installing Components
+
+1. Navigate to the component listing
+2. Click **Install**
+3. Select which deployment(s) to install it on
+4. The component is immediately available to your bot
+
+Installed components appear in the **Components** tab of your deployment configuration. Your bot can reference them by name in `render_ui` calls, just like built-in components.
+
+<Callout type="info">
+Installing a component triggers a config sync to your pod. No restart is needed -- the MCP server picks up new components dynamically.
+</Callout>
+
+## Installing Services
+
+Services bundle multiple resources together:
+
+1. Navigate to the service listing
+2. Click **Install**
+3. Select the target deployment
+4. The service installs its bundled components, skills, and system prompt instructions
+
+### Service Hosting Models
+
+Services support two hosting models:
+
+- **Self-hosted** -- All logic runs inside your bot pod. No external API calls. Full offline capability.
+- **Remote** -- The service provider hosts an external API. Your bot makes authenticated requests to the provider's endpoint using HMAC-signed credentials.
+
+## Publishing
+
+### Publishing a Component
+
+1. Create a **Creator Profile** from the marketplace settings
+2. Prepare your component with a manifest file defining:
+   - Component metadata (name, description, version, category)
+   - `configSchema` -- Zod schema for the component's props
+   - Source code (HTML/CSS/JS for sandbox components, or template definition)
+3. Submit for review
+
+The manifest is validated against 13 rules covering structure, schema correctness, and SDK version compatibility.
+
+### Publishing a Service
+
+1. Create a Creator Profile (if you haven't already)
+2. Define the service bundle:
+   - Select which components to include
+   - Select which skills to include
+   - Write system prompt instruction snippets
+   - Choose hosting model (self-hosted or remote)
+3. Submit for review
+
+### Review Process
+
+All marketplace submissions go through a moderation review before being published. Moderators check for:
+
+- Manifest validity and schema correctness
+- Code quality and security (no malicious scripts)
+- Accurate description and metadata
+- Proper categorization
+
+## Ratings and Reviews
+
+Users can rate installed components and services on a 5-star scale and leave text reviews. Reviews help other users discover high-quality packages and provide feedback to creators.
+
+## Pricing
+
+Components and services can be:
+
+- **Free** -- Available to all users at no cost
+- **Paid** -- One-time purchase processed through Stripe
+
+Creators set their own pricing. Jarble handles payment processing and provides purchase records for both buyers and sellers.

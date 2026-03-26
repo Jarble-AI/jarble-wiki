@@ -1,0 +1,107 @@
+---
+title: Getting Started
+description: Set up your first Jarble AI bot deployment in under five minutes.
+order: 2
+---
+
+Deploy your first AI bot in under five minutes. This guide walks you through account creation, runtime selection, LLM configuration, and your first deployment.
+
+## Create Your Account
+
+Sign up at `jarble.ai/login` using Google, GitHub, or email. Authentication is handled by Auth0 -- your credentials are never stored on Jarble servers.
+
+After signing in you land on the **Dashboard**, which shows all of your deployments. New accounts start with a free trial that includes enough credits to test a bot end-to-end.
+
+## Create a Deployment
+
+Click **New Bot** on the dashboard to open the onboarding wizard. The first step asks for a **deployment name** -- a human-friendly label shown on the dashboard and in the web chat header.
+
+<Callout type="info" title="Tip">
+Names are display-only and can be changed later from the deployment configuration panel.
+</Callout>
+
+## Choose a Runtime
+
+A runtime is the engine that powers your bot. Jarble currently offers two options:
+
+**OpenClaw** (Recommended) -- Full-featured Node.js runtime with MCP tool support, rich UI rendering (charts, tables, 3D, maps), and multi-platform messaging. Best for production bots that need interactive components.
+
+**ZeroClaw** -- Lightweight Python runtime for simple text-based chat. Lower resource usage, faster startup. Good for quick experiments or bots that only need basic conversational abilities.
+
+<Callout type="info">
+Most users should start with **OpenClaw**. You can always create additional deployments with a different runtime later.
+</Callout>
+
+## Configure Your LLM
+
+Your bot needs an LLM (Large Language Model) to generate responses. You have two options: use **Included Credits** (powered by OpenRouter, billed through Jarble) or **Bring Your Own Key**.
+
+### Included Credits
+
+Select a monthly spending cap ($5 -- $100/mo). Jarble provisions an OpenRouter key automatically and routes requests through 200+ models. The default model is `openrouter/auto`, which picks the best model for each request.
+
+### Bring Your Own Key (BYOK)
+
+Paste an API key from any supported provider. The wizard auto-detects the provider based on the key prefix:
+
+| Provider | Key Prefix | Models | Get a Key |
+|----------|-----------|--------|-----------|
+| OpenRouter | `sk-or-` | 200+ models | [openrouter.ai/keys](https://openrouter.ai/keys) |
+| Anthropic | `sk-ant-` | Claude Opus 4, Sonnet 4, Haiku 3.5 | [console.anthropic.com](https://console.anthropic.com/settings/keys) |
+| OpenAI | `sk-` | GPT-4o, GPT-4o Mini, o1 | [platform.openai.com](https://platform.openai.com/api-keys) |
+| Google AI | `AIza` | Gemini 2.0 Pro, Gemini 2.0 Flash | [aistudio.google.com](https://aistudio.google.com/apikey) |
+
+<Callout type="info" title="Tip">
+If you have a **Claude Max** subscription, your `sk-ant-oat*` token is automatically detected and uses Bearer authentication. No extra configuration needed.
+</Callout>
+
+## Deploy
+
+Review the hardware defaults (CPU, memory, storage) and click **Deploy**. Jarble provisions a Kubernetes pod with your chosen runtime and LLM configuration. The deployment status progresses through these stages:
+
+1. **Creating** -- Pod is being provisioned and dependencies are installing.
+2. **Running** -- Bot is live and ready to receive messages.
+
+First-time deployments typically take 30--90 seconds. Status updates stream in real time via SSE -- no need to refresh the page.
+
+<Callout type="info">
+If the deployment stays in "Creating" for more than two minutes, check the **Logs** tab in the deployment configuration panel for errors.
+</Callout>
+
+## Chat with Your Bot
+
+Once the status shows **Running**, click on the deployment to open the web chat interface at `/d/[id]`. Type a message and your bot responds in real time.
+
+With the OpenClaw runtime, your bot can render **rich UI components** directly in the conversation:
+
+- Charts (line, bar, area, pie, radar, scatter)
+- Data tables with sorting and pagination
+- Interactive forms and button groups
+- Maps, code editors, and image galleries
+- 3D visualizations and custom sandboxed components
+
+These appear as interactive canvas blocks inline with the chat. You can drag to reorder, split multi-item components into individual cards, or merge compatible cards together.
+
+## Connect Messaging Platforms
+
+Optionally connect your bot to one or more messaging platforms. Open the deployment configuration panel and navigate to the **Platforms** tab.
+
+**Telegram** -- Create a bot via [@BotFather](https://t.me/BotFather), paste the bot token, then approve the pairing code sent by your bot.
+
+**Discord** -- Create an application in the [Developer Portal](https://discord.com/developers/applications), copy the bot token, and invite the bot to your server.
+
+**Slack** -- Create a Slack app with Socket Mode enabled. You need both the **Bot Token** (`xoxb-`) and **App Token** (`xapp-`).
+
+**WhatsApp** -- Scan a QR code from the Platforms tab to pair via WhatsApp Web. No developer account required.
+
+<Callout type="info" title="Tip">
+Platform credentials are encrypted with AES-256-GCM before storage. Jarble never has access to your plaintext tokens at rest.
+</Callout>
+
+## Next Steps
+
+Your bot is live. Here is where to go from here:
+
+- **[Platform Guide](/docs/platform)** -- Runtimes, providers, messaging platforms, and deployment lifecycle in depth.
+- **[Components](/docs/components)** -- All 37 canvas components your bot can render, with props and examples.
+- **[Marketplace](/docs/marketplace)** -- Browse, install, and publish custom components and service bundles.

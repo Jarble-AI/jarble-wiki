@@ -1,0 +1,117 @@
+---
+title: Security
+description: Sandbox isolation, Content Security Policy, AES-256 encryption, pod security, and the CDN allowlist.
+order: 7
+---
+
+Jarble follows a security-first design across every layer of the stack. User-generated code runs in sandboxed iframes with no same-origin access. Platform credentials are encrypted at rest with AES-256-GCM. Pods run as non-root with all Linux capabilities dropped. Every API input is validated with Zod schemas before processing.
+
+The architecture applies defense-in-depth: the same CDN allowlist is enforced both server-side (before data reaches the client) and client-side (in the sandbox CSP). Library URLs, HTML content, and component props all pass through independent validation layers.
+
+## Sandbox Security
+
+Custom components that execute arbitrary HTML, CSS, and JavaScript run inside a sandboxed iframe. The iframe uses the `sandbox` attribute with a minimal permission set:
+
+```
+sandbox="allow-scripts allow-popups"
+```
+
+Notably, `allow-same-origin` is absent. This means the iframe runs at an opaque origin and cannot access the parent page's DOM, cookies, localStorage, or any same-origin APIs. Communication between the parent and sandbox happens exclusively through `postMessage` with a structured bridge protocol.
+
+### Heartbeat Watchdog
+
+Every sandbox iframe sends a heartbeat ping to the parent every 5 seconds via `setInterval`. If the parent misses 3 consecutive heartbeats (15 seconds of silence), the sandbox is killed and a "Sandbox timed out" error is shown. This protects against infinite loops and runaway computation. Because `setInterval` continues firing regardless of user JavaScript execution, animations and long-running scripts do not trigger false timeouts.
+
+### Error Rate Limiting
+
+When a sandbox component crashes, users can click "Fix Component" to send the error back to the bot for repair. To prevent infinite fix loops (where the bot keeps generating broken code), each card is limited to 3 fix attempts per 60-second window. After the limit is reached, the card shows a manual retry prompt instead of auto-sending to the bot.
+
+## Content Security Policy
+
+Sandbox iframes inject a CSP meta tag that restricts which external resources can be loaded. Only scripts, styles, and fonts from 10 trusted CDN origins are permitted. The allowlist is centralized in a shared package and enforced in two places:
+
+- **Server-side**: The `uiBlockParser` validates library URLs against the allowlist before they reach the client. Untrusted URLs are stripped.
+- **Client-side**: The sandbox `buildDocument()` function constructs a CSP meta tag from the same allowlist, so even if a URL bypasses server validation, the browser will block it.
+
+### Trusted CDN Origins
+
+| Origin | Purpose |
+|--------|---------|
+| `https://cdn.jsdelivr.net` | General-purpose CDN for npm packages |
+| `https://cdnjs.cloudflare.com` | Cloudflare-hosted open source libraries |
+| `https://unpkg.com` | npm package CDN |
+| `https://cdn.tailwindcss.com` | Tailwind CSS play CDN for sandbox styling |
+| `https://esm.sh` | ESM module CDN for modern JavaScript imports |
+| `https://threejs.org` | Three.js 3D visualization library |
+| `https://d3js.org` | D3.js data visualization library |
+| `https://cdn.plot.ly` | Plotly charting library |
+| `https://fonts.googleapis.com` | Google Fonts stylesheet loading |
+| `https://fonts.gstatic.com` | Google Fonts file serving |
+
+## Credential Encryption
+
+All messaging platform tokens (Telegram, Discord, Slack, WhatsApp, Teams, Messenger) are encrypted before storage using AES-256-GCM authenticated encryption. Each encryption operation generates a random 16-byte initialization vector (IV), ensuring that identical plaintext values produce different ciphertext.
+
+```
+// Encrypted format stored in the database:
+enc:<iv-hex>:<auth-tag-hex>:<ciphertext-hex>
+
+// Algorithm: AES-256-GCM
+// Key: 32-byte (256-bit) from API_KEY_ENCRYPTION_KEY env var
+// IV: 16 bytes, randomly generated per encryption
+// Auth tag: 16 bytes, provides integrity verification
+```
+
+The GCM auth tag provides integrity verification, preventing tampering with stored ciphertext. When credentials are returned to the frontend, they are decrypted server-side and then masked (first 4 and last 4 characters shown, middle replaced with asterisks).
+
+In local development mode (when `API_KEY_ENCRYPTION_KEY` is not set), credentials are stored with a `plain:` prefix. The decryption path handles both formats gracefully.
+
+## Response Headers
+
+The Next.js frontend applies security response headers to all routes via `next.config.ts`. The `X-Powered-By` header is also disabled to reduce information leakage.
+
+| Header | Value | Purpose |
+|--------|-------|---------|
+| `X-Content-Type-Options` | `nosniff` | Prevents browsers from MIME-type sniffing responses |
+| `X-Frame-Options` | `DENY` | Prevents the site from being embedded in iframes (clickjacking protection) |
+| `Strict-Transport-Security` | `max-age=63072000; includeSubDomains; preload` | Enforces HTTPS for 2 years with HSTS preload eligibility |
+| `Referrer-Policy` | `strict-origin-when-cross-origin` | Full URL for same-origin, only origin for cross-origin |
+| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` | Disables access to camera, microphone, geolocation, and Payment Request APIs |
+
+## Pod Security
+
+Each bot deployment runs in an isolated Kubernetes pod with a hardened security context:
+
+| Measure | Configuration | Purpose |
+|---------|---------------|---------|
+| Non-root user | `runAsUser: 1000, runAsGroup: 1000, runAsNonRoot: true` | Prevents container processes from running as root |
+| Drop all capabilities | `securityContext.capabilities.drop: ["ALL"]` | Removes all Linux capabilities (NET_RAW, SYS_ADMIN, etc.) |
+| Service account disabled | `automountServiceAccountToken: false` | Prevents pods from accessing the Kubernetes API |
+| Network policy | Custom NetworkPolicy in jarble namespace | Restricts egress to LLM API endpoints, messaging platforms, and DNS. Blocks cloud metadata (169.254.169.254) and localhost |
+| Liveness/readiness probes | TCP probe on port 18789 | Detects unhealthy pods and triggers automatic restarts |
+
+## Authentication
+
+Authentication uses Auth0 with RS256-signed JWTs. The API verifies tokens on every request using JWKS (JSON Web Key Sets) fetched from the Auth0 domain. Key rotation is handled automatically by the JWKS client with caching.
+
+Every protected procedure enforces ownership checks. A user can only read, modify, or delete resources they own. For example, the deployment router verifies `deployment.userId === ctx.user.id` on every mutation. Marketplace operations verify creator profile ownership before allowing component or service modifications.
+
+Admin operations (marketplace moderation) are restricted to a hardcoded set of admin user IDs. This is an interim measure that will be replaced with role-based access control.
+
+## Input Validation
+
+All tRPC procedure inputs are validated with Zod schemas. Invalid inputs are rejected with a `BAD_REQUEST` error before any business logic executes.
+
+- **Server-side library URL validation**: The `uiBlockParser` validates all library URLs in `jarble_ui` blocks against the CDN allowlist before forwarding to the client.
+- **HTML sanitization**: User-facing HTML content is sanitized with DOMPurify on the client. The sandbox `sanitizeHtmlProp()` function extracts and validates embedded scripts and styles, stripping untrusted URLs.
+- **Component props validation**: Every component rendered on the canvas passes through Zod schema validation. Props that fail validation are first run through the AutoFix repair pipeline (20 rules, 30+ aliases) before a second validation attempt.
+- **Manifest validation**: Marketplace component submissions are validated against 13 rules covering manifest structure, `configSchema` correctness, and SDK version compatibility.
+
+## Component Expansion Limits
+
+To prevent denial-of-service via excessively large component payloads, two hard limits are enforced:
+
+| Limit | Value | Purpose |
+|-------|-------|---------|
+| Maximum children | 50 | Caps the number of child elements in list-type components (stat_grid, data_table rows, etc.) |
+| Serialized size limit | 256 KB | Maximum JSON-serialized size of a single component's props. Prevents memory exhaustion from very large data payloads |

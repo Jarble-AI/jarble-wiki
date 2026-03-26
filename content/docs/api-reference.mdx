@@ -1,0 +1,141 @@
+---
+title: API Reference
+description: Complete reference for the tRPC API, SSE streaming endpoints, MCP tools, and authentication flows.
+order: 6
+---
+
+Jarble exposes a type-safe tRPC API at the `/trpc` path. All requests use SuperJSON serialization for transparent handling of dates, Maps, Sets, and other non-JSON types. The API is organized into 10 routers with 90+ procedures covering deployment lifecycle, billing, marketplace operations, and more.
+
+Frontend clients use the tRPC React Query integration for type-safe data fetching with automatic caching, retry, and optimistic updates. Server-side callers can use the vanilla tRPC client with the same type safety.
+
+## Authentication
+
+Authentication is handled by Auth0 using RS256-signed JWTs. The API validates tokens on every request via JWKS (JSON Web Key Set) rotation from the Auth0 domain. Tokens are passed as Bearer tokens in the Authorization header.
+
+Every protected procedure enforces ownership checks. A user can only read, modify, or delete resources they own. For example, the deployment router verifies `deployment.userId === ctx.user.id` on every mutation.
+
+## API Routers
+
+The API is organized into these routers:
+
+| Router | Description |
+|--------|-------------|
+| `deployment` | CRUD for bot deployments, lifecycle controls (start/stop/restart), status polling |
+| `user` | User profile, email verification, free trial status |
+| `billing` | Stripe checkout sessions, subscription management, credit pool linking |
+| `credentials` | Platform credential management (encrypt, store, decrypt, mask) |
+| `skills` | Skill catalog browsing, per-deployment skill installation |
+| `marketplace` | Component and service discovery, search, filtering |
+| `marketplaceAdmin` | Creator profiles, component/service publishing, moderation |
+| `install` | Component and service installation to deployments |
+| `reviews` | Component ratings and text reviews |
+| `chat` | Message proxying to bot pods, SSE stream management |
+
+## Deployment Procedures
+
+### deployment.create
+
+Creates a new bot deployment. Provisions 4 Kubernetes resources:
+
+1. **Deployment** -- `dep-<id>` (1 replica, container "runtime", port 18789)
+2. **Secret** -- `secret-<id>` (LLM keys, platform tokens, deployment metadata)
+3. **PVC** -- `pvc-<id>` (Longhorn, 20Gi RWO, mounted at `/data`)
+4. **Service** -- ClusterIP for inter-pod communication
+
+### deployment.list
+
+Returns all deployments for the authenticated user with current status.
+
+### deployment.start / deployment.stop / deployment.restart
+
+Lifecycle controls that scale the Kubernetes deployment replica count. Start scales to 1, stop scales to 0, restart scales down then back up.
+
+### deployment.delete
+
+Deletes the deployment record and all associated Kubernetes resources (pod, secret, PVC, service).
+
+### deployment.getStatus
+
+Returns the current pod status by querying the Kubernetes API. Used for real-time status updates via SSE polling.
+
+## Chat / Streaming
+
+### POST /api/tambo-agent
+
+The main chat endpoint. Accepts a message, deployment ID, and thread ID. Proxies the message to the bot pod via `kubectl exec` and streams the response as SSE events.
+
+### SSE Event Types
+
+| Event | Description |
+|-------|-------------|
+| `TEXT_MESSAGE_START` | Begin streaming text response |
+| `TEXT_MESSAGE_CONTENT` | Incremental text delta |
+| `TEXT_MESSAGE_END` | Text response complete |
+| `UI_BLOCK_START` | Begin component (type + ID) |
+| `UI_BLOCK_PROPS` | Incremental JSON props for the component |
+| `UI_BLOCK_END` | Component ready to render |
+| `RUN_FINISHED` | Entire response complete |
+
+## Credential Management
+
+### credentials.save
+
+Encrypts platform credentials with AES-256-GCM and stores them in the database. Each encryption generates a random 16-byte IV. The encrypted format:
+
+```
+enc:<iv-hex>:<auth-tag-hex>:<ciphertext-hex>
+```
+
+### credentials.get
+
+Decrypts credentials server-side and returns them masked (first 4 and last 4 characters shown, middle replaced with asterisks).
+
+## Billing Procedures
+
+### billing.createCheckout
+
+Creates a Stripe Checkout session with dynamic pricing via `price_data`. Supports the 5 spending cap tiers ($5, $10, $25, $50, $100/mo).
+
+### billing.linkDeployments
+
+Links deployments into credit pools for shared billing. The dashboard graph view visualizes pool relationships.
+
+### Webhook Processing
+
+Stripe webhooks are processed with idempotency tracking via the `processedWebhookEvents` table to prevent duplicate processing.
+
+## MCP Tools
+
+Each bot pod runs a custom MCP server via stdio. The server exposes these tools:
+
+| Tool | Description |
+|------|-------------|
+| `render_ui` | Renders a UI component by type and props. Outputs a `jarble_ui` fenced block. |
+| `define_component` | Defines a reusable custom component and saves it to the pod PVC at `/data/components/`. |
+| `list_components` | Lists all available components (built-in + custom) with descriptions and prop schemas. |
+| `component_reference` | Returns detailed reference documentation for a specific component type including its Zod schema. |
+| `save_canvas_file` | Saves canvas component data to `/data/files/` for persistence across sessions. |
+
+## Config Sync
+
+The `configSync` service synchronizes configuration between the database and the pod's persistent volume. It is triggered by credential saves, skill installations, service installations, and deployment updates.
+
+The sync pipeline:
+
+1. Load deployment from DB
+2. Load platform credentials (decrypt)
+3. Load installed skills and service instruction snippets
+4. Render config files: `soul.md`, `openclaw.json`, `skills/*.json`
+5. Write configs to PVC via `kubectl exec`
+6. Update Kubernetes Secret with env vars
+7. Rolling restart (scale to 0, then back to 1)
+8. Poll for readiness (30 attempts x 2s = 60s max)
+
+## Input Validation
+
+All tRPC procedure inputs are validated with Zod schemas. Invalid inputs are rejected with a `BAD_REQUEST` error before any business logic executes.
+
+- **Server-side library URL validation** -- The `uiBlockParser` validates all library URLs against the CDN allowlist before forwarding to the client.
+- **HTML sanitization** -- User-facing HTML content is sanitized with DOMPurify on the client.
+- **Component props validation** -- Every component passes through Zod schema validation. Failed props are run through the AutoFix repair pipeline before a second attempt.
+- **Manifest validation** -- Marketplace submissions are validated against 13 rules covering manifest structure, `configSchema` correctness, and SDK version compatibility.

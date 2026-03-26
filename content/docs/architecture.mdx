@@ -1,0 +1,270 @@
+---
+title: Architecture
+description: System design overview covering Kubernetes orchestration, the config sync pipeline, and infrastructure.
+order: 8
+---
+
+Jarble is a monorepo containing a Next.js 15 frontend, an Express + tRPC API backend, shared packages, and infrastructure configuration. Users interact with the frontend, which communicates with the API via type-safe tRPC calls. The API orchestrates Kubernetes pods that run bot runtimes with MCP servers for rich UI rendering.
+
+## System Overview
+
+```
+Monorepo Structure
+==================
+
+develop-monorepo/
+  |-- Jarble-mvp/              Next.js 15 frontend (App Router, React 19)
+  |-- jarble-api-main/         Express + tRPC API backend
+  |-- shared/
+  |   |-- component-manifest/  Single source of truth for component metadata
+  |-- scripts/                 CI/build scripts
+  |-- infrastructure/          Terraform IaC + Auth0 config
+  |-- runtimes/                Bot runtime implementations
+```
+
+### Architecture Diagram
+
+```
+                         +------------------+
+                         |     Browser      |
+                         |  (Next.js SSR +  |
+                         |   React 19 SPA)  |
+                         +--------+---------+
+                                  |
+                     tRPC (SuperJSON) + SSE streams
+                                  |
+                         +--------+---------+
+                         |   Next.js 15     |
+                         |   App Router     |
+                         |   (port 3000)    |
+                         +--------+---------+
+                                  |
+                         tRPC HTTP + REST
+                                  |
+                         +--------+---------+
+                         |  Express + tRPC  |
+                         |    API Server    |
+                         |   (port 3001)    |
+                         +---+----+----+----+
+                             |    |    |
+                  +----------+    |    +----------+
+                  |               |               |
+           +------+------+  +----+----+  +-------+-------+
+           |   Drizzle   |  |  Stripe |  |   Auth0 JWKS  |
+           |  ORM + DB   |  |   API   |  |  Verification |
+           +-------------+  +---------+  +---------------+
+                  |
+        MySQL / PostgreSQL / SQLite
+                             |
+                    kubectl exec / K8s API
+                             |
+              +--------------+--------------+
+              |         K8s Cluster         |
+              |        (K3s / Hetzner)      |
+              |                             |
+              |  +------------------------+ |
+              |  | Pod: dep-<id>          | |
+              |  |  +------------------+  | |
+              |  |  | OpenClaw Runtime |  | |
+              |  |  | (Node.js 22)     |  | |
+              |  |  +--------+---------+  | |
+              |  |           |            | |
+              |  |  +--------+---------+  | |
+              |  |  | MCP stdio Server |  | |
+              |  |  | (jarble-ui-      |  | |
+              |  |  |  server.js)      |  | |
+              |  |  +------------------+  | |
+              |  |                        | |
+              |  |  PVC: /data/ (20Gi)    | |
+              |  |  Secret: LLM keys +   | |
+              |  |    platform tokens     | |
+              |  +------------------------+ |
+              +-----------------------------+
+```
+
+## Deployment Flow
+
+When a user creates a new bot deployment, the system provisions four Kubernetes resources and boots the pod. The entire flow is orchestrated by the `deployment.create` tRPC mutation.
+
+```
+1. User submits wizard form (runtime, template, LLM provider, model)
+       |
+2. API creates deployment record in DB (status: "creating")
+       |
+3. API provisions 4 K8s resources in the "jarble" namespace:
+       |-- Deployment: dep-<id>  (1 replica, port 18789)
+       |-- Secret: secret-<id>  (LLM keys, platform tokens, metadata)
+       |-- PVC: pvc-<id>        (Longhorn, 20Gi RWO, mounted at /data)
+       |-- Service: ClusterIP   (inter-pod communication)
+       |
+4. Pod boots:
+       |-- Container image: ghcr.io/jarble-ai/openclaw:latest
+       |-- npm install (first boot only, skipped if .initialized exists)
+       |-- MCP server starts on stdio
+       |-- OpenClaw gateway starts on port 18789
+       |
+5. API polls readiness probe (TCP 18789, 30 attempts x 2s = 60s max)
+       |
+6. API writes config files to PVC via kubectl exec:
+       |-- /data/config/openclaw.json  (channel configs, agent model)
+       |-- /data/config/soul.md        (system prompt + service snippets)
+       |-- /data/skills/*.json         (installed skill configs)
+       |
+7. API updates DB status to "running"
+```
+
+## Chat Architecture
+
+The chat system streams bot responses via Server-Sent Events using the AG-UI event protocol. Messages flow through the API, which proxies them to the bot pod via kubectl exec against the OpenClaw gateway.
+
+```
+User types message in browser
+       |
+POST /api/tambo-agent { deploymentId, message, threadId }
+       |
+API authenticates request (Auth0 JWT)
+       |
+API finds pod for deployment (kubectl get pods)
+       |
+API opens exec session to pod (kubectl exec)
+       |
+Bot processes message through LLM (Anthropic/OpenAI/Google/OpenRouter)
+       |
+Bot calls MCP tools (render_ui, define_component, etc.)
+       |
+API streams response as SSE events:
+  |-- TEXT_MESSAGE_START / CONTENT / END
+  |-- UI_BLOCK_START / PROPS / END
+  |-- RUN_FINISHED
+       |
+Frontend renders text into chat bubbles and UI blocks onto the canvas
+```
+
+## Canvas System
+
+The canvas system renders rich UI components (charts, tables, 3D visualizations, forms) inline in the chat conversation. Components are defined in a shared manifest and rendered through a multi-stage pipeline.
+
+```
+Bot calls render_ui MCP tool with component type + props
+       |
+Response contains jarble_ui fenced blocks in markdown
+       |
+uiBlockParser extracts blocks (brace-depth JSON parser)
+       |
+Server-side validation: library URLs checked against CDN allowlist
+       |
+Frontend receives parsed UI blocks via SSE
+       |
+autoFixProps runs 20 repair rules
+       |
+Zod schema validation (per-component schemas from manifest)
+       |
+CanvasRenderer renders component with error boundary
+       |
+SimpleCanvasGrid positions cards in responsive CSS grid
+```
+
+The system supports 37 active component types plus 1 alias (`canvas` resolves to `sandbox`). Categories include Display (card, stat_grid, data_table, chart, tabs, accordion), Charts (recharts-based), Interactive (button_group, form), Media (video, audio, image_gallery), and Specialized (code_editor, map, sandbox).
+
+## Config Sync Pipeline
+
+The `configSync` service synchronizes configuration between the database and the pod's persistent volume. It is triggered by credential saves, skill installations, service installations, and deployment updates.
+
+```
+Trigger: credential save, skill install, service install, deployment update
+       |
+syncConfigsToPvc(deploymentId)
+       |
+buildDeploymentFields()
+  |-- Load deployment from DB
+  |-- Load platform credentials (decrypt)
+  |-- Load installed skills
+  |-- Load service instruction snippets
+       |
+renderConfigs()
+  |-- soul.md: system prompt + service instruction sections
+  |-- openclaw.json: channel configs, agent model
+  |-- skills/*.json: one file per installed skill
+       |
+writeConfigsToPvc() via kubectl exec
+       |
+updateDeploymentSecret() (K8s Secret with env vars)
+       |
+restartDeployment() (scale to 0, then back to 1)
+       |
+Poll for readiness (30 attempts x 2s = 60s max)
+```
+
+## MCP Server
+
+Each bot pod runs a custom MCP (Model Context Protocol) server via stdio. The server exposes tools that allow the LLM to render rich UI, define custom components, and interact with the component registry.
+
+| Tool | Description |
+|------|-------------|
+| `render_ui` | Renders a UI component by type and props. Outputs a `jarble_ui` fenced block. |
+| `define_component` | Defines a reusable custom component and saves it to `/data/components/`. |
+| `list_components` | Lists all available components (built-in + custom) with descriptions and prop schemas. |
+| `component_reference` | Returns detailed reference for a specific component type including its Zod schema. |
+| `save_canvas_file` | Saves canvas component data to `/data/files/` for persistence across sessions. |
+
+Pods also fetch platform skills dynamically from the API on boot. After a 3-second delay, the MCP server calls `GET /debug/platform-skills` to get the latest skill definitions. If the API is unreachable, it falls back to a PVC-cached version, and finally to baked-in defaults.
+
+## Database
+
+The API uses Drizzle ORM with support for three database backends. MySQL is the production database, PostgreSQL is an alternative, and SQLite is used for local development.
+
+| Table | Purpose |
+|-------|---------|
+| `users` | Auth0 user ID, Stripe customer ID, email verification, free trial tracking |
+| `deployments` | Bot instances with K8s state, LLM config, subscription links |
+| `runtimeCatalog` | Available runtimes with hardware specs, pricing tiers, feature flags |
+| `platformCredentials` | AES-256-GCM encrypted messaging platform tokens |
+| `skillsCatalog` | Global skill catalog (Web Search, Weather, Calculator, etc.) |
+| `deploymentSkills` | Many-to-many: skills installed on deployments |
+| `marketplaceComponents` | Published components with manifest, code, author, pricing, moderation status |
+| `componentVersions` | Version history for marketplace components |
+| `componentInstalls` | Component installations on deployments |
+| `componentReviews` | Ratings and text reviews for components |
+| `componentPurchases` | Purchase records for paid components |
+| `creatorProfiles` | Marketplace creator profiles |
+| `marketplaceServices` | Published services (self-hosted and remote) |
+| `serviceComponents` | Many-to-many: services to bundled components |
+| `serviceSkills` | Many-to-many: services to bundled skills |
+| `serviceInstalls` | Service installations on deployments |
+| `serviceCredentials` | Per-install HMAC signing secrets for hosted services |
+| `processedWebhookEvents` | Stripe webhook idempotency tracking |
+
+## Infrastructure
+
+Production infrastructure runs on Hetzner Cloud managed by Terraform. The Kubernetes cluster uses K3s (lightweight K8s distribution) with Longhorn for persistent storage.
+
+| Component | Technology | Details |
+|-----------|-----------|---------|
+| Cloud provider | Hetzner Cloud | European cloud with competitive pricing |
+| IaC | Terraform | Reproducible provisioning of servers, networks, DNS |
+| Kubernetes | K3s | Lightweight K8s for edge and single-node deployments |
+| Storage | Longhorn | Distributed storage; each deployment gets 20Gi RWO PVC |
+| Container registry | GitHub Container Registry | Images at `ghcr.io/jarble-ai/openclaw:latest` |
+| Namespace | jarble | All pods, secrets, PVCs, and services |
+
+## Tech Stack Summary
+
+| Layer | Technology | Notes |
+|-------|-----------|-------|
+| Frontend framework | Next.js (App Router) | v15 with React 19 |
+| Styling | Tailwind CSS + shadcn/ui | Tailwind v4 with CSS variable tokens |
+| Animation | Framer Motion | Layout animations, page transitions |
+| Charts | Recharts | Unified chart component |
+| Chat framework | @assistant-ui/react | ExternalStoreRuntime for thread-based chat |
+| Node graph | @xyflow/react + dagre | Interactive deployment graph |
+| Code editor | Monaco Editor | VS Code engine for code_editor component |
+| Maps | Leaflet | Interactive maps with markers and polygons |
+| API layer | Express + tRPC + SuperJSON | Type-safe RPC |
+| ORM | Drizzle | MySQL, PostgreSQL, SQLite drivers |
+| Authentication | Auth0 | RS256 JWT + JWKS verification |
+| Payments | Stripe | Dynamic pricing, webhook processing |
+| MCP server | Custom stdio server | jarble-ui-server.js in bot pods |
+| Error tracking | Sentry | Client + server error tracking |
+| Analytics | PostHog | Product analytics and feature flags |
+| HTML sanitization | DOMPurify | Client-side sanitization |
+| Schema validation | Zod | v4 (frontend) / v3 (API) |

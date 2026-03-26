@@ -1,0 +1,134 @@
+---
+title: Components Reference
+description: Documentation for all 37 built-in canvas components, the sandbox system, and the AutoFix repair pipeline.
+order: 4
+---
+
+Jarble bots render rich, interactive UI components inline in conversations. This page documents all 37 built-in components, the sandbox system, the AutoFix repair pipeline, and how components are rendered.
+
+## How Canvas Components Work
+
+When your bot needs to display structured data, charts, forms, or any visual element beyond plain text, it calls the `render_ui` MCP tool. This tool outputs a `jarble_ui` fenced block containing the component type and its props as JSON. The frontend parses these blocks and renders them as interactive cards on the canvas.
+
+The rendering pipeline:
+
+1. Bot calls `render_ui` with a component type and props
+2. Response contains `jarble_ui` fenced blocks in markdown
+3. `uiBlockParser` extracts blocks using a brace-depth JSON parser
+4. Server-side validation checks library URLs against the CDN allowlist
+5. Frontend receives parsed UI blocks via SSE
+6. `autoFixProps` runs 20 repair rules (type coercion, enum normalization, missing defaults, 30+ aliases)
+7. Zod schema validation per component
+8. `CanvasRenderer` renders the component with an error boundary
+9. `SimpleCanvasGrid` positions cards in a responsive CSS grid
+
+## Built-in Component Types
+
+The platform includes 37 active component types plus 1 alias (`canvas` resolves to `sandbox`).
+
+### Display Components
+
+- **card** -- A simple content card with title, description, and optional footer
+- **stat_grid** -- Grid of statistic cards showing key metrics with labels and values
+- **data_table** -- Sortable, paginated data table with column definitions
+- **tabs** -- Tabbed content panels for organizing related information
+- **accordion** -- Collapsible content sections for progressive disclosure
+- **timeline** -- Chronological event display with timestamps and descriptions
+
+### Chart Components
+
+All chart components use Recharts under the hood with a unified `chart` component type:
+
+- **line** -- Line charts for trends over time
+- **bar** -- Bar charts for categorical comparisons
+- **area** -- Area charts for volume over time
+- **pie** -- Pie/donut charts for proportional data
+- **radar** -- Radar charts for multi-dimensional comparison
+- **scatter** -- Scatter plots for correlation analysis
+
+### Interactive Components
+
+- **button_group** -- Group of clickable buttons that send messages back to the bot
+- **form** -- Dynamic forms with text inputs, selects, checkboxes, and submission handling
+
+### Media Components
+
+- **video** -- Video player with URL source
+- **audio** -- Audio player with URL source
+- **image_gallery** -- Grid of images with lightbox viewing
+
+### Specialized Components
+
+- **code_editor** -- Monaco-based code editor with syntax highlighting (same engine as VS Code)
+- **map** -- Leaflet-based interactive map with markers and polygons
+- **sandbox** -- Arbitrary HTML/CSS/JS running in a secure sandboxed iframe
+- **mermaid** -- Mermaid diagram rendering (flowcharts, sequence diagrams, etc.)
+- **markdown** -- Rendered markdown content block
+
+## Sandbox System
+
+The sandbox component allows bots to generate and render arbitrary HTML, CSS, and JavaScript in a secure iframe. This enables rich visualizations using libraries like Three.js, D3.js, Plotly, and more.
+
+### Security Model
+
+Sandbox iframes use the `sandbox` attribute with minimal permissions:
+
+```
+sandbox="allow-scripts allow-popups"
+```
+
+Notably, `allow-same-origin` is absent. The iframe runs at an opaque origin and cannot access the parent page's DOM, cookies, localStorage, or any same-origin APIs. Communication happens exclusively through `postMessage`.
+
+### Trusted CDN Origins
+
+Only scripts, styles, and fonts from these 10 CDN origins are permitted:
+
+| Origin | Purpose |
+|--------|---------|
+| `https://cdn.jsdelivr.net` | General-purpose CDN for npm packages |
+| `https://cdnjs.cloudflare.com` | Cloudflare-hosted open source libraries |
+| `https://unpkg.com` | npm package CDN |
+| `https://cdn.tailwindcss.com` | Tailwind CSS play CDN for sandbox styling |
+| `https://esm.sh` | ESM module CDN for modern JavaScript imports |
+| `https://threejs.org` | Three.js 3D visualization library |
+| `https://d3js.org` | D3.js data visualization library |
+| `https://cdn.plot.ly` | Plotly charting library |
+| `https://fonts.googleapis.com` | Google Fonts stylesheet loading |
+| `https://fonts.gstatic.com` | Google Fonts file serving |
+
+### Heartbeat Watchdog
+
+Every sandbox iframe sends a heartbeat ping to the parent every 5 seconds. If the parent misses 3 consecutive heartbeats (15 seconds of silence), the sandbox is killed and a "Sandbox timed out" error is shown. This protects against infinite loops and runaway computation.
+
+## AutoFix Repair Pipeline
+
+When component props fail Zod schema validation, the AutoFix pipeline attempts to repair them before showing an error. It applies 20 repair rules including:
+
+- **Type coercion** -- string to number, string to boolean
+- **Enum normalization** -- `"Line"` to `"line"`
+- **Missing defaults** -- Fill required fields with sensible defaults
+- **Alias resolution** -- 30+ component name aliases resolved to canonical names
+
+After repair, a second validation attempt is made. If it still fails, the component shows an error state with a "Fix Component" button that sends the error back to the bot.
+
+### Error Rate Limiting
+
+To prevent infinite fix loops (where the bot keeps generating broken code), each card is limited to 3 fix attempts per 60-second window. After the limit is reached, the card shows a manual retry prompt instead of auto-sending to the bot.
+
+## Canvas Interactions
+
+The canvas grid supports several user interactions:
+
+- **Drag to reorder** -- Rearrange cards within the canvas
+- **Split** -- Break multi-item components into individual cards
+- **Merge** -- Combine compatible cards back together
+- **Resize** -- Cards respond to the responsive CSS grid layout
+
+## Component Expansion Limits
+
+To prevent denial-of-service via excessively large component payloads, two hard limits are enforced:
+
+| Limit | Value | Purpose |
+|-------|-------|---------|
+| Maximum children | 50 | Caps the number of child elements in list-type components |
+| Serialized size limit | 256 KB | Maximum JSON-serialized size of a single component's props |
