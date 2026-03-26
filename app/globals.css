@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "tw-animate-css";
+@plugin "@tailwindcss/typography";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -81,7 +82,7 @@
 }
 
 .dark {
-  /* Charcoal sketch aesthetic — warm tones, like pencil on dark artist paper */
+  /* Charcoal sketch aesthetic - warm tones, like pencil on dark artist paper */
   --primary: #f0ece6;
   --primary-foreground: #0f0e0d;
   --sidebar-primary: #f0ece6;
@@ -116,7 +117,7 @@
   --sidebar-ring: #9a958e;
 }
 
-/* Charcoal sketch texture effects — dark mode only */
+/* Charcoal sketch texture effects - dark mode only */
 .dark body::before {
   content: "";
   position: fixed;

@@ -43,7 +43,7 @@ export default function HomePage() {
           Jarble Wiki
         </h1>
         <p className="text-lg text-muted-foreground mb-8">
-          Everything you need to deploy AI bots across WhatsApp, Discord, Slack, Telegram, and more — all without writing code.
+          Everything you need to deploy AI bots across WhatsApp, Discord, Slack, Telegram, and more - all without writing code.
         </p>
         <div className="flex items-center justify-center gap-3">
           <Link href="/docs/introduction">

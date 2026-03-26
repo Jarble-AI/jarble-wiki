@@ -1,4 +1,5 @@
 import { MDXRemote } from "next-mdx-remote/rsc";
+import remarkGfm from "remark-gfm";
 import { Callout } from "./Callout";
 import { CodeBlock } from "./CodeBlock";
 import { StepGuide } from "./StepGuide";
@@ -36,7 +37,7 @@ interface MDXContentProps {
 export function MDXContent({ source }: MDXContentProps) {
   return (
     <div className="prose prose-neutral dark:prose-invert max-w-none">
-      <MDXRemote source={source} components={mdxComponents} />
+      <MDXRemote source={source} components={mdxComponents} options={{ mdxOptions: { remarkPlugins: [remarkGfm] } }} />
     </div>
   );
 }
